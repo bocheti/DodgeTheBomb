@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <conio.h>  // Para capturar teclas sin esperar Enter (solo en Windows)
+#include <conio.h>  // To capture keys without waiting for Enter (Windows only)
 
 #define MAX_SIZE 20
 #define MAX_BOMBS 30
@@ -16,9 +16,9 @@ typedef struct {
     int score;
 } ScoreEntry;
 
-void iniciarJuego();
-void mostrarPuntuaciones();
-void salir();
+void startGame();
+void showScores();
+void exitGame();
 void displayGrid(int size, Position player, Position bombs[], int bombCount);
 void movePlayer(Position *player, char input, int size);
 int checkBombCollision(Position player, Position bombs[], int bombCount);
@@ -26,57 +26,57 @@ void saveScore(const char *playerName, int score);
 void loadTopScores();
 
 int main() {
-    int opcion;
+    int option;
 
     do {
-        printf("\n===== MENÚ PRINCIPAL =====\n");
-        printf("1. Jugar\n");
-        printf("2. Ver puntuaciones\n");
-        printf("3. Salir\n");
-        printf("Elige una opción: ");
-        scanf("%d", &opcion);
+        printf("\n===== MAIN MENU =====\n");
+        printf("1. Play\n");
+        printf("2. View Scores\n");
+        printf("3. Exit\n");
+        printf("Choose an option: ");
+        scanf("%d", &option);
 
-        switch (opcion) {
+        switch (option) {
             case 1:
-                iniciarJuego();
+                startGame();
                 break;
             case 2:
-                mostrarPuntuaciones();
+                showScores();
                 break;
             case 3:
-                salir();
+                exitGame();
                 break;
             default:
-                printf("Opción inválida, intenta de nuevo.\n");
+                printf("Invalid option, please try again.\n");
         }
-    } while (opcion != 3);
+    } while (option != 3);
 
     return 0;
 }
 
-void iniciarJuego() {
+void startGame() {
     int size, difficulty, score = 0;
     Position player = {0, 0};
     Position bombs[MAX_BOMBS];
     char playerName[50];
 
-    printf("\nIngrese su nombre: ");
+    printf("\nEnter your name: ");
     scanf("%s", playerName);
     
-    printf("\nIngrese el tamaño del campo de juego (ej. 10): ");
+    printf("\nEnter the size of the game field (e.g., 10): ");
     scanf("%d", &size);
     if (size > MAX_SIZE) size = MAX_SIZE;
 
-    printf("Seleccione dificultad:\n");
-    printf("1. Principiante\n");
-    printf("2. Medio\n");
+    printf("Select difficulty:\n");
+    printf("1. Beginner\n");
+    printf("2. Intermediate\n");
     printf("3. Pro\n");
-    printf("4. LeyendaDelGaming\n");
-    printf("Elige una opción: ");
+    printf("4. GamingLegend\n");
+    printf("Choose an option: ");
     scanf("%d", &difficulty);
 
     if (difficulty < 1 || difficulty > 4) {
-        printf("Dificultad inválida, eligiendo Principiante por defecto.\n");
+        printf("Invalid difficulty, defaulting to Beginner.\n");
         difficulty = 1;
     }
 
@@ -87,20 +87,20 @@ void iniciarJuego() {
         int bombCount = (round * difficulty) + (round / 2);
         if (bombCount > MAX_BOMBS) bombCount = MAX_BOMBS;
 
-        // Generación aleatoria de bombas
+        // Random bomb generation
         for (int i = 0; i < bombCount; i++) {
             bombs[i].x = rand() % size;
             bombs[i].y = rand() % size;
         }
 
         displayGrid(size, player, bombs, bombCount);
-        printf("Usa W/A/S/D para moverte: ");
-        char input = _getch();  // Captura la entrada sin esperar "Enter"
+        printf("Use W/A/S/D to move: ");
+        char input = _getch();  // Capture input without waiting for Enter
 
         movePlayer(&player, input, size);
 
         if (checkBombCollision(player, bombs, bombCount)) {
-            printf("\n¡BOOM! Has perdido en la ronda %d.\n", round);
+            printf("\nBOOM! You lost on round %d.\n", round);
             break;
         }
 
@@ -109,11 +109,11 @@ void iniciarJuego() {
     }
 
     saveScore(playerName, score);
-    printf("\nTu puntuación final: %d\n", score);
+    printf("\nYour final score: %d\n", score);
 }
 
 void displayGrid(int size, Position player, Position bombs[], int bombCount) {
-    printf("\n===== CAMPO DE JUEGO =====\n");
+    printf("\n===== GAME FIELD =====\n");
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
             int isBomb = 0, isPlayer = (x == player.x && y == player.y);
@@ -159,7 +159,7 @@ void saveScore(const char *playerName, int score) {
     scores[count].score = score;
     count++;
 
-    // Ordenar las puntuaciones de mayor a menor
+    // Sort scores from highest to lowest
     for (int i = 0; i < count - 1; i++) {
         for (int j = i + 1; j < count; j++) {
             if (scores[j].score > scores[i].score) {
@@ -177,7 +177,7 @@ void saveScore(const char *playerName, int score) {
     fclose(file);
 }
 
-void mostrarPuntuaciones() {
+void showScores() {
     loadTopScores();
 }
 
@@ -187,18 +187,18 @@ void loadTopScores() {
     int count = 0;
 
     if (file == NULL) {
-        printf("No hay puntuaciones guardadas.\n");
+        printf("No saved scores.\n");
         return;
     }
 
-    printf("\n===== TOP 10 PUNTUACIONES =====\n");
+    printf("\n===== TOP 10 SCORES =====\n");
     while (count < MAX_TOP_SCORES && fscanf(file, "%s %d", scores[count].name, &scores[count].score) == 2) {
-        printf("%d. %s - %d puntos\n", count + 1, scores[count].name, scores[count].score);
+        printf("%d. %s - %d points\n", count + 1, scores[count].name, scores[count].score);
         count++;
     }
     fclose(file);
 }
 
-void salir() {
-    printf("\nGracias por jugar. ¡Hasta la próxima!\n");
+void exitGame() {
+    printf("\nThanks for playing. See you next time!\n");
 }
