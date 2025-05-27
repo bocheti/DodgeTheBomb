@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <conio.h>   // For _getch()
-#include <windows.h> // For gotoxy() and cursor hiding
+#include <conio.h>
+#include <windows.h>
+#include <string.h>
+#include <math.h>
 
 #define MAX_SIZE 20
-#define MAX_BOMBS 30
+#define MAX_BOMBS 300
 #define MAX_TOP_SCORES 10
 
 typedef struct {
@@ -17,7 +19,6 @@ typedef struct {
     int score;
 } ScoreEntry;
 
-// Cursor movement
 void gotoxy(int x, int y) {
     COORD coord;
     coord.X = x;
@@ -25,7 +26,6 @@ void gotoxy(int x, int y) {
     SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
-// Hide the blinking cursor
 void hideCursor() {
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_CURSOR_INFO cursorInfo;
@@ -37,7 +37,7 @@ void hideCursor() {
 void startGame();
 void showScores();
 void exitGame();
-void displayGrid(int size, Position player, Position bombs[], int bombCount);
+void displayGrid(int size, Position player, Position bombs[], int bombCount, float timeLeft);
 void movePlayer(Position *player, char input, int size);
 int checkBombCollision(Position player, Position bombs[], int bombCount);
 void saveScore(const char *playerName, int score);
@@ -46,7 +46,6 @@ void loadTopScores();
 int main() {
     int option;
     hideCursor();
-
     while (1) {
         system("cls");
         gotoxy(0, 0);
@@ -56,34 +55,19 @@ int main() {
         printf("3. Exit\n");
         printf("Choose an option: ");
         scanf("%d", &option);
-        getchar();  // Clear newline left by scanf
-
+        getchar();
         switch (option) {
-            case 1:
-                startGame();
-                break;
-            case 2:
-                showScores();
-                printf("\nPress any key to return to menu...");
-                _getch();
-                break;
-            case 3:
-                exitGame();
-                return 0;
-            default:
-                printf("Invalid option, please try again.\n");
-                Sleep(1000); // Wait for 1 second
-                break;
+            case 1: startGame(); break;
+            case 2: showScores(); printf("\nPress any key to return to menu..."); _getch(); break;
+            case 3: exitGame(); return 0;
+            default: printf("Invalid option, please try again.\n"); Sleep(1000); break;
         }
-
-        system("cls"); // Clear screen between menu actions
     }
-
     return 0;
 }
 
 void startGame() {
-    int size, difficulty, score = 0;
+    int size, difficulty, score = 0, totalBombs = 0;
     Position player = {0, 0};
     Position bombs[MAX_BOMBS];
     char playerName[50];
@@ -92,8 +76,7 @@ void startGame() {
     gotoxy(0, 0);
     printf("Enter your name: ");
     scanf("%s", playerName);
-
-    printf("Enter the size of the game field (e.g., 10): ");
+    printf("Enter the size of the game field (max %d): ", MAX_SIZE);
     scanf("%d", &size);
     if (size > MAX_SIZE) size = MAX_SIZE;
 
@@ -101,11 +84,9 @@ void startGame() {
     printf("1. Beginner\n");
     printf("2. Intermediate\n");
     printf("3. Pro\n");
-    printf("4. GamingLegend\n");
     printf("Choose an option: ");
     scanf("%d", &difficulty);
-
-    if (difficulty < 1 || difficulty > 4) {
+    if (difficulty < 1 || difficulty > 3) {
         printf("Invalid difficulty, defaulting to Beginner.\n");
         difficulty = 1;
         Sleep(1000);
@@ -113,25 +94,56 @@ void startGame() {
 
     srand(time(NULL));
     int round = 1;
+    int baseBombs = difficulty;
+    float reactionTime;
+
+    switch (difficulty) {
+        case 1: reactionTime = 5.0; break;
+        case 2: reactionTime = 3.5; break;
+        case 3: reactionTime = 2.0; break;
+    }
+
+    for (int i = 0; i < baseBombs; i++) {
+        bombs[totalBombs].x = rand() % size;
+        bombs[totalBombs].y = rand() % size;
+        totalBombs++;
+    }
 
     while (1) {
-        int bombCount = (round * difficulty) + (round / 2);
-        if (bombCount > MAX_BOMBS) bombCount = MAX_BOMBS;
+        if (round % 5 == 0) reactionTime = fmax(1.0, reactionTime - 0.2);
 
-        for (int i = 0; i < bombCount; i++) {
-            bombs[i].x = rand() % size;
-            bombs[i].y = rand() % size;
+        for (int i = 0; i < baseBombs; i++) {
+            if (totalBombs < MAX_BOMBS) {
+                bombs[totalBombs].x = rand() % size;
+                bombs[totalBombs].y = rand() % size;
+                totalBombs++;
+            }
         }
 
-        displayGrid(size, player, bombs, bombCount);
-        gotoxy(0, size + 2);
-        printf("Use W/A/S/D to move (Round %d | Score: %d): ", round, score);
-        char input = _getch();
+        float timeLeft = reactionTime;
+        clock_t startTime = clock();
+        char input = 0;
+
+        while (((clock() - startTime) / (float)CLOCKS_PER_SEC) < reactionTime) {
+            timeLeft = reactionTime - ((clock() - startTime) / (float)CLOCKS_PER_SEC);
+            displayGrid(size, player, bombs, totalBombs, timeLeft);
+            Sleep(100);
+            if (_kbhit()) {
+                input = _getch();
+                break;
+            }
+        }
+
+        if (!input) {
+            gotoxy(0, size + 4);
+            printf("\nTime's up! You didn't move in time.\n");
+            break;
+        }
 
         movePlayer(&player, input, size);
 
-        if (checkBombCollision(player, bombs, bombCount)) {
-            gotoxy(0, size + 4);
+        if (checkBombCollision(player, bombs, totalBombs)) {
+            gotoxy(0, size + 5);
             printf("BOOM! You lost on round %d.\n", round);
             break;
         }
@@ -141,37 +153,45 @@ void startGame() {
     }
 
     saveScore(playerName, score);
-    gotoxy(0, size + 6);
+    gotoxy(0, size + 7);
     system("cls");
     printf("Your final score: %d\n", score);
     printf("Press any key to return to the main menu...");
     _getch();
 }
 
-void displayGrid(int size, Position player, Position bombs[], int bombCount) {
+void displayGrid(int size, Position player, Position bombs[], int bombCount, float timeLeft) {
     gotoxy(0, 0);
     system("cls");
     printf("===== GAME FIELD =====\n");
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++) {
             int isBomb = 0, isPlayer = (x == player.x && y == player.y);
-
             for (int i = 0; i < bombCount; i++)
                 if (bombs[i].x == x && bombs[i].y == y) isBomb = 1;
-
             if (isPlayer) printf(" P ");
             else if (isBomb) printf(" * ");
             else printf(" . ");
         }
         printf("\n");
     }
+    printf("Time left: %.1f seconds\n", timeLeft);
 }
 
 void movePlayer(Position *player, char input, int size) {
-    if (input == 'w' && player->y > 0) player->y--;
-    else if (input == 's' && player->y < size - 1) player->y++;
-    else if (input == 'a' && player->x > 0) player->x--;
-    else if (input == 'd' && player->x < size - 1) player->x++;
+    Position newPos = *player;
+    if (input == 'w') newPos.y--;
+    else if (input == 's') newPos.y++;
+    else if (input == 'a') newPos.x--;
+    else if (input == 'd') newPos.x++;
+
+    if (newPos.x < 0 || newPos.x >= size || newPos.y < 0 || newPos.y >= size) {
+        gotoxy(0, size + 4);
+        printf("You moved outside the grid. You lose!\n");
+        exit(0);
+    } else {
+        *player = newPos;
+    }
 }
 
 int checkBombCollision(Position player, Position bombs[], int bombCount) {
@@ -184,7 +204,6 @@ int checkBombCollision(Position player, Position bombs[], int bombCount) {
 void saveScore(const char *playerName, int score) {
     ScoreEntry scores[MAX_TOP_SCORES + 1];
     int count = 0;
-
     FILE *file = fopen("scores.txt", "r");
     if (file != NULL) {
         while (count < MAX_TOP_SCORES && fscanf(file, "%s %d", scores[count].name, &scores[count].score) == 2) {
@@ -192,11 +211,9 @@ void saveScore(const char *playerName, int score) {
         }
         fclose(file);
     }
-
     strcpy(scores[count].name, playerName);
     scores[count].score = score;
     count++;
-
     for (int i = 0; i < count - 1; i++) {
         for (int j = i + 1; j < count; j++) {
             if (scores[j].score > scores[i].score) {
@@ -206,7 +223,6 @@ void saveScore(const char *playerName, int score) {
             }
         }
     }
-
     file = fopen("scores.txt", "w");
     for (int i = 0; i < (count > MAX_TOP_SCORES ? MAX_TOP_SCORES : count); i++) {
         fprintf(file, "%s %d\n", scores[i].name, scores[i].score);
@@ -223,24 +239,22 @@ void loadTopScores() {
     FILE *file = fopen("scores.txt", "r");
     ScoreEntry scores[MAX_TOP_SCORES];
     int count = 0;
-
     gotoxy(0, 0);
     system("cls");
-
     if (file == NULL) {
         printf("No saved scores.\n");
         return;
     }
-
     printf("===== TOP 10 SCORES =====\n");
     while (count < MAX_TOP_SCORES && fscanf(file, "%s %d", scores[count].name, &scores[count].score) == 2) {
-        printf("%d. %s - %d points\n", count + 1, scores[count].name, scores[count].score);
+        printf("%d. %s - %d\n", count + 1, scores[count].name, scores[count].score);
         count++;
     }
     fclose(file);
 }
 
 void exitGame() {
-    gotoxy(0, 0);
-    printf("\nThanks for playing. See you next time!\n");
+    system("cls");
+    printf("Thank you for playing!\n");
+    Sleep(1000);
 }
