@@ -34,6 +34,10 @@ void hideCursor() {
     SetConsoleCursorInfo(hConsole, &cursorInfo);
 }
 
+void setColor(int color) {
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), color);
+}
+
 void startGame();
 void showScores();
 void exitGame();
@@ -164,18 +168,32 @@ void displayGrid(int size, Position player, Position bombs[], int bombCount, flo
     gotoxy(0, 0);
     system("cls");
     printf("===== GAME FIELD =====\n");
+    
+    printf("   ");
+    for (int x = 0; x < size; x++) {
+        printf("%2d ", x);
+    }
+    printf("\n");
+
     for (int y = 0; y < size; y++) {
+        printf("%2d ", y);
         for (int x = 0; x < size; x++) {
             int isBomb = 0, isPlayer = (x == player.x && y == player.y);
             for (int i = 0; i < bombCount; i++)
                 if (bombs[i].x == x && bombs[i].y == y) isBomb = 1;
-            if (isPlayer) printf(" P ");
-            else if (isBomb) printf(" * ");
-            else printf(" . ");
+            if (isPlayer) {
+                setColor(10); printf(" P "); setColor(7);
+            } else if (isBomb) {
+                setColor(12); printf(" * "); setColor(7);
+            } else {
+                setColor(8); printf(" . "); setColor(7);
+            }
         }
         printf("\n");
     }
+    setColor(11);
     printf("Time left: %.1f seconds\n", timeLeft);
+    setColor(7);
 }
 
 void movePlayer(Position *player, char input, int size) {
