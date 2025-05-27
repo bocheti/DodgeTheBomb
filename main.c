@@ -42,7 +42,7 @@ void startGame();
 void showScores();
 void exitGame();
 void displayGrid(int size, Position player, Position bombs[], int bombCount, float timeLeft);
-void movePlayer(Position *player, char input, int size);
+int movePlayer(Position *player, char input, int size);
 int checkBombCollision(Position player, Position bombs[], int bombCount);
 void saveScore(const char *playerName, int score);
 void loadTopScores();
@@ -71,30 +71,44 @@ int main() {
 }
 
 void startGame() {
-    int size, difficulty, score = 0, totalBombs = 0;
+    int size, difficulty, score = 0, totalBombs = 0, movingError = 0;
     Position player = {0, 0};
     Position bombs[MAX_BOMBS];
     char playerName[50];
 
+    char inputBuffer[100];
+
     system("cls");
     gotoxy(0, 0);
     printf("Enter your name: ");
-    scanf("%s", playerName);
-    printf("Enter the size of the game field (max %d): ", MAX_SIZE);
-    scanf("%d", &size);
-    if (size > MAX_SIZE) size = MAX_SIZE;
+    fgets(playerName, sizeof(playerName), stdin);
+    size_t len = strlen(playerName);
+    if (len > 0 && playerName[len - 1] == '\n') {
+        playerName[len - 1] = '\0';
+    }
 
+    while (1) {
+    printf("Enter the size of the game field (max %d): ", MAX_SIZE);
+    fgets(inputBuffer, sizeof(inputBuffer), stdin);
+    if (sscanf(inputBuffer, "%d", &size) == 1 && size > 0 && size <= MAX_SIZE) {
+        break;
+    }
+    printf("Invalid input. Please enter a number between 1 and %d.\n", MAX_SIZE);
+    }
+
+    while (1) {
     printf("Select difficulty:\n");
     printf("1. Beginner\n");
     printf("2. Intermediate\n");
     printf("3. Pro\n");
     printf("Choose an option: ");
-    scanf("%d", &difficulty);
-    if (difficulty < 1 || difficulty > 3) {
-        printf("Invalid difficulty, defaulting to Beginner.\n");
-        difficulty = 1;
-        Sleep(1000);
+    fgets(inputBuffer, sizeof(inputBuffer), stdin);
+    if (sscanf(inputBuffer, "%d", &difficulty) == 1 && difficulty >= 1 && difficulty <= 3) {
+        break;
     }
+    printf("Invalid difficulty. Please enter 1, 2, or 3.\n");
+    }
+
 
     srand(time(NULL));
     int round = 1;
@@ -144,11 +158,16 @@ void startGame() {
             break;
         }
 
-        movePlayer(&player, input, size);
+        movingError = movePlayer(&player, input, size);
+        if (movingError) {
+            gotoxy(0, size + 4);
+            printf("\nYou moved outside the grid, you lost in round %d!.\n", round);
+            break;
+        }
 
         if (checkBombCollision(player, bombs, totalBombs)) {
-            gotoxy(0, size + 5);
-            printf("BOOM! You lost on round %d.\n", round);
+            gotoxy(0, size + 4);
+            printf("\nBOOM! You lost on round %d.\n", round);
             break;
         }
 
@@ -158,26 +177,40 @@ void startGame() {
 
     saveScore(playerName, score);
     gotoxy(0, size + 7);
-    system("cls");
     printf("Your final score: %d\n", score);
     printf("Press any key to return to the main menu...");
     _getch();
 }
 
 void displayGrid(int size, Position player, Position bombs[], int bombCount, float timeLeft) {
-    gotoxy(0, 0);
-    system("cls");
-    printf("===== GAME FIELD =====\n");
+    static int initialized = 0;
     
-    printf("   ");
-    for (int x = 0; x < size; x++) {
-        printf("%2d ", x);
-    }
-    printf("\n");
+    if (!initialized) {
+        system("cls"); // only clear screen once when grid is drawn
+        gotoxy(0, 0);
+        printf("===== GAME FIELD =====\n");
 
-    for (int y = 0; y < size; y++) {
-        printf("%2d ", y);
+        printf("   ");
         for (int x = 0; x < size; x++) {
+            printf("%2d ", x);
+        }
+        printf("\n");
+
+        for (int y = 0; y < size; y++) {
+            printf("%2d ", y);
+            for (int x = 0; x < size; x++) {
+                printf(" . ");
+            }
+            printf("\n");
+        }
+
+        initialized = 1;
+    }
+
+    // Draw bombs and player
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            gotoxy(3 + x * 3, 2 + y);  // adjust for row/column headers
             int isBomb = 0, isPlayer = (x == player.x && y == player.y);
             for (int i = 0; i < bombCount; i++)
                 if (bombs[i].x == x && bombs[i].y == y) isBomb = 1;
@@ -189,14 +222,18 @@ void displayGrid(int size, Position player, Position bombs[], int bombCount, flo
                 setColor(8); printf(" . "); setColor(7);
             }
         }
-        printf("\n");
     }
+
+    // Update timer only
+    gotoxy(0, size + 3);
     setColor(11);
-    printf("Time left: %.1f seconds\n", timeLeft);
+    printf("Time left: %.1f seconds   ", timeLeft); // add padding to overwrite previous value
     setColor(7);
 }
 
-void movePlayer(Position *player, char input, int size) {
+
+int movePlayer(Position *player, char input, int size) {
+    int error = 0;
     Position newPos = *player;
     if (input == 'w') newPos.y--;
     else if (input == 's') newPos.y++;
@@ -204,12 +241,11 @@ void movePlayer(Position *player, char input, int size) {
     else if (input == 'd') newPos.x++;
 
     if (newPos.x < 0 || newPos.x >= size || newPos.y < 0 || newPos.y >= size) {
-        gotoxy(0, size + 4);
-        printf("You moved outside the grid. You lose!\n");
-        exit(0);
+        return 1;
     } else {
         *player = newPos;
     }
+    return 0;
 }
 
 int checkBombCollision(Position player, Position bombs[], int bombCount) {
